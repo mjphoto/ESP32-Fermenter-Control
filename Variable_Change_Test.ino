@@ -10,6 +10,12 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
+//Load EEPROM Library
+#include <EEPROM.h>
+
+// define the number of bytes you want to access
+#define EEPROM_SIZE 1
+
 //Define temp probe pin
 #define ONE_WIRE_BUS 15
 
@@ -20,9 +26,12 @@ DeviceAddress AIR_TEMP_SENSOR = {0x28, 0xFF, 0x16, 0x8D, 0x87, 0x16, 0x03, 0x50}
 DeviceAddress VAT_TEMP_SENSOR = {0x28, 0xFF, 0x0A, 0x2E, 0x68, 0x14, 0x04, 0xA6}; //Test sensor B
 
 //variables for temp sensors
-float set_temp = 19.0;
 float air_temp;
 float vat_temp;
+
+//set temp variables
+float set_temp;
+float new_set_temp;
 
 //define state variables for testing
 const int STATE_ERROR = -1;
@@ -44,6 +53,9 @@ String header;
 
 void setup() {
   Serial.begin(115200);
+  
+  //Start EEPROM at defined size (above).
+  EEPROM.begin(EEPROM_SIZE);
 
   // Set up temperature probes
   sensors.setResolution(AIR_TEMP_SENSOR, 11); //resolution of 0.125deg cels, 
@@ -63,6 +75,11 @@ void setup() {
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
   server.begin();
+  
+   //set up set temp variables here.
+  set_temp = EEPROM.read(0);
+  //set_temp = 19.0; //Uncomment this line to set up EEPROM temp the first time then reupload with commented out
+  new_set_temp = set_temp;
 }
 
 void loop(){
@@ -95,12 +112,21 @@ void loop(){
 
             //Set Temp Changes By Button
             if (header.indexOf("GET /set/up") >= 0) {
-              Serial.println("Increase Set Temperature by 0.5");
-              set_temp = set_temp + 0.5;  
+              Serial.println("Increase New Set Temperature by 0.5");
+              new_set_temp = new_set_temp + 0.5;  
              }
             else if (header.indexOf("GET /set/down") >= 0) {
-              Serial.println("Decrease Set Temperature by 0.5");
-              set_temp = set_temp - 0.5;           
+              Serial.println("Decrease New Set Temperature by 0.5");
+              new_set_temp = new_set_temp - 0.5;           
+             }
+            //Submit button for changing set temp
+            if (header.indexOf("GET /set/submit") >= 0) {
+              Serial.print("Change Set Temp To ");
+              set_temp = new_set_temp;
+              Serial.println(set_temp); 
+              EEPROM.write(0, set_temp);
+              EEPROM.commit();
+              Serial.println("EEPROM Write");
              }
             
             // Display the HTML web page
@@ -123,12 +149,18 @@ void loop(){
             // Web Page Heading
             client.println("<body><h1>Laser Snake Temperature</h1>");
 
-            // Set Temp Line
+            //Set Temp Line
             client.println("Set Temperature =");
             client.println("<inline-block class=\"temp\">" );
             client.println(set_temp);
+            client.println("&#8451</inline-block><br><br><br>");         
+            
+            //Change Set Temp Line
+            client.println("New Set Temperature =");
+            client.println("<inline-block class=\"temp\">" );
+            client.println(new_set_temp);
             client.println("&#8451</inline-block>");         
-            client.println("<a href=\"/set/up\"><button class=\"button\">+</button></a><a href=\"/set/down\"><button class=\"button\">-</button></a></p><br>");
+            client.println("<a href=\"/set/up\"><button class=\"button\">+</button></a><a href=\"/set/down\"><button class=\"button\">-</button></a><a href=\"/set/submit\"><button class=\"button\">SUBMIT</button></a></p><br>");
             
             //Fermenter Temp Line
             client.println("Fermenter Temperature =");
