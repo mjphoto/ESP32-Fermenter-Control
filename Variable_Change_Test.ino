@@ -94,6 +94,12 @@ void loop(){
   sensors.requestTemperaturesByAddress(VAT_TEMP_SENSOR);
   vat_temp = sensors.getTempC(VAT_TEMP_SENSOR);
   air_temp = sensors.getTempC(AIR_TEMP_SENSOR);
+
+  //run web server
+  web_server();
+}
+
+void web_server(){
   
   WiFiClient client = server.available();   // Listen for incoming clients
 
@@ -138,7 +144,7 @@ void loop(){
             
             // Display the HTML web page
             client.println("<!DOCTYPE html><html>");
-            client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+            client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");           
             client.println("<link rel=\"icon\" href=\"data:,\">");
 
             //CSS Styles
