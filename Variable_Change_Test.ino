@@ -2,7 +2,6 @@
 //ESP32 module. This code will be merged with some existing arduino code that controls a fermentation
 //chamber once functions are proven
 
-
 // Load Wi-Fi library
 #include <WiFi.h>
 
@@ -42,8 +41,10 @@ const int STATE_HEAT = 3;
 int state = STATE_COOL;
 
 // Replace with your network credentials
-const char* ssid     = "AHRF455889";
-const char* password = "zxcv1597";
+//const char* ssid     = "AHRF455889";
+//const char* password = "zxcv1597";
+const char* ssid     = "vodafone513DFE";
+const char* password = "12345678";
 
 // Set web server port number to 80
 WiFiServer server(80);
@@ -76,13 +77,24 @@ void setup() {
   Serial.println(WiFi.localIP());
   server.begin();
   
-   //set up set temp variables here.
-  set_temp = EEPROM.read(0);
-  //set_temp = 19.0; //Uncomment this line to set up EEPROM temp the first time then reupload with commented out
+  //set up set temp variables here.
+  if (EEPROM.read(0) != 255) {
+    set_temp = EEPROM.read(0);
+  }
+  if (EEPROM.read(0) == 255) {
+    set_temp = 19.0;
+  }
   new_set_temp = set_temp;
 }
 
 void loop(){
+  
+  //Get temps
+  sensors.requestTemperaturesByAddress(AIR_TEMP_SENSOR);
+  sensors.requestTemperaturesByAddress(VAT_TEMP_SENSOR);
+  vat_temp = sensors.getTempC(VAT_TEMP_SENSOR);
+  air_temp = sensors.getTempC(AIR_TEMP_SENSOR);
+  
   WiFiClient client = server.available();   // Listen for incoming clients
 
   if (client) {                             // If a new client connects,
@@ -104,11 +116,6 @@ void loop(){
             client.println("Connection: close");
             client.println();
 
-            //Get temps
-            sensors.requestTemperaturesByAddress(AIR_TEMP_SENSOR);
-            sensors.requestTemperaturesByAddress(VAT_TEMP_SENSOR);
-            vat_temp = sensors.getTempC(VAT_TEMP_SENSOR);
-            air_temp = sensors.getTempC(AIR_TEMP_SENSOR);
 
             //Set Temp Changes By Button
             if (header.indexOf("GET /set/up") >= 0) {
