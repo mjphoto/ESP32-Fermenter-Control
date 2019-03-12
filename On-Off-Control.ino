@@ -6,6 +6,10 @@
 // Load libraries
 #include <WiFi.h>
 #include <Wire.h>
+#include "SSD1306Wire.h" 
+
+// Initialize the OLED display using Wire library
+SSD1306Wire  display(0x3c, 4, 15);
 
 //Load EEPROM Library
 #include <EEPROM.h>
@@ -16,9 +20,13 @@
 // either debug OR production mode, as both use the serial 
 #define DEBUG true
 #define PRODUCTION false
-#define ONE_WIRE_BUS 15
-#define FRIDGE_RELAY 22
-#define HEATER_RELAY 23
+#define ONE_WIRE_BUS 13
+#define FRIDGE_RELAY 2
+#define HEATER_RELAY 17
+
+#define FERMENTER_1 false
+#define FERMENTER_2 false
+#define FERMENTER_3 true
 
 /*  tuning variables- tweak for more precise control
  *  Note: negative values mean below the set temperature.
@@ -33,8 +41,8 @@ float fridge_on_thresh = 0.25;
 float fridge_off_thresh = 0.05;
 
 // Replace with your network credentials
-const char* ssid     = "AHRF455889";
-const char* password = "zxcv1597";
+const char* ssid     = "Laser_Snake";
+const char* password = "zxcv1597zxcv1597";
 
 // Set web server port number to 80
 WiFiServer server(80);
@@ -43,7 +51,9 @@ WiFiServer server(80);
 String header;
 
 // Replace with your unique IFTTT URL resource
-const char* resource = "https://maker.ifttt.com/trigger/fermenter_temp/with/key/bQJZjx9ezdfV_3muN_LuQIsfm8GRDRk3cD0sN7HTkE1";
+const char* resource_1 = "https://maker.ifttt.com/trigger/fermenter_1/with/key/bQJZjx9ezdfV_3muN_LuQIsfm8GRDRk3cD0sN7HTkE1";
+const char* resource_2 = "https://maker.ifttt.com/trigger/fermenter_2/with/key/bQJZjx9ezdfV_3muN_LuQIsfm8GRDRk3cD0sN7HTkE1";
+const char* resource_3 = "https://maker.ifttt.com/trigger/fermenter_3/with/key/bQJZjx9ezdfV_3muN_LuQIsfm8GRDRk3cD0sN7HTkE1";
 
 // Maker Webhooks IFTTT
 const char* server_ifttt = "maker.ifttt.com";
@@ -73,10 +83,12 @@ int state = STATE_IDLE; //initialise in idle
 // set up 1-wire probes
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
-//DeviceAddress AIR_TEMP_SENSOR = {0x28, 0xFF, 0x7A, 0xF6, 0x82, 0x16, 0x03, 0x69};
-//DeviceAddress VAT_TEMP_SENSOR = {0x28, 0xFF, 0xE3, 0x9C, 0x82, 0x16, 0x04, 0x25};
-DeviceAddress AIR_TEMP_SENSOR = {0x28, 0xFF, 0x16, 0x8D, 0x87, 0x16, 0x03, 0x50}; //Test sensor A
-DeviceAddress VAT_TEMP_SENSOR = {0x28, 0xFF, 0x0A, 0x2E, 0x68, 0x14, 0x04, 0xA6}; //Test sensor B
+//DeviceAddress AIR_TEMP_SENSOR = {0x28, 0xFF, 0x7A, 0xF6, 0x82, 0x16, 0x03, 0x69}; //Fermenter 1 Air
+//DeviceAddress VAT_TEMP_SENSOR = {0x28, 0xFF, 0xE3, 0x9C, 0x82, 0x16, 0x04, 0x25}; //Fermenter 2 Vat
+//DeviceAddress AIR_TEMP_SENSOR = {0x28, 0xFF, 0x16, 0x8D, 0x87, 0x16, 0x03, 0x50}; //Fermenter 2 Air
+//DeviceAddress VAT_TEMP_SENSOR = {0x28, 0xFF, 0x0A, 0x2E, 0x68, 0x14, 0x04, 0xA6}; //Fermenter 2 Vat
+DeviceAddress AIR_TEMP_SENSOR = {0x28, 0xFF, 0x97, 0xEF, 0x87, 0x16, 0x03, 0xC1}; //Fermenter 3 Air
+DeviceAddress VAT_TEMP_SENSOR = {0x28, 0xFF, 0xE8, 0x8F, 0x70, 0x16, 0x05, 0x79}; //Fermenter 3 Vat
 
 //set up temp measurement variables
 bool air_probe_connected;
@@ -90,6 +102,8 @@ unsigned long MEAS_INTERVAL = 1000; //take temperature measurement every 1s
 RunningMedian vatTempMedian = RunningMedian(60);
 RunningMedian airTempMedian = RunningMedian(60);
 
+
+
 //unsigned long PUBLISH_PERIOD = 60000; //Publish values every minute
 //unsigned long last_publish = 0;
 
@@ -99,6 +113,23 @@ const int AIR_ID = 2;
 
 void setup() {
   Serial.begin(115200);
+
+  //start Wire for OLED display
+  Wire.begin(4,15);
+
+  //tigger OLED display to start
+  pinMode(16,OUTPUT); 
+  digitalWrite(16, LOW); 
+  delay(50); 
+  digitalWrite(16, HIGH); 
+
+  
+  // Initialising the UI will init the display too.
+  display.init();
+  display.setI2cAutoInit(true);
+  display.flipScreenVertically();
+  display.setFont(ArialMT_Plain_16);
+  display.setTextAlignment(TEXT_ALIGN_CENTER);
   
    //Start EEPROM at defined size (above).
   EEPROM.begin(EEPROM_SIZE);
@@ -170,6 +201,16 @@ void setup() {
   
   //Initalize timer
   startMillis = millis();
+
+  if (FERMENTER_1){
+    Serial.print("Fermenter 1");
+  }
+  if (FERMENTER_2){
+    Serial.print("Fermenter 2");
+  }
+  if (FERMENTER_3){
+    Serial.print("Fermenter 3");
+  }
 }
 
 //web server function
@@ -337,18 +378,47 @@ void makeIFTTTRequest() {
   }
   
   Serial.print("Request resource: "); 
-  Serial.println(resource);
-
+  
+ if (FERMENTER_1){
+  Serial.println(resource_1);
   String jsonObject = String("{\"value1\":\"") + set_temp + "\",\"value2\":\"" + vat_temp
                       + "\",\"value3\":\"" + air_temp + "\"}";
                     
-  client.println(String("POST ") + resource + " HTTP/1.1");
+  client.println(String("POST ") + resource_1 + " HTTP/1.1");
   client.println(String("Host: ") + server_ifttt); 
   client.println("Connection: close\r\nContent-Type: application/json");
   client.print("Content-Length: ");
   client.println(jsonObject.length());
   client.println();
   client.println(jsonObject);
+  }
+ if (FERMENTER_2){
+  Serial.println(resource_2);
+  String jsonObject = String("{\"value1\":\"") + set_temp + "\",\"value2\":\"" + vat_temp
+                      + "\",\"value3\":\"" + air_temp + "\"}";
+                    
+  client.println(String("POST ") + resource_2 + " HTTP/1.1");
+  client.println(String("Host: ") + server_ifttt); 
+  client.println("Connection: close\r\nContent-Type: application/json");
+  client.print("Content-Length: ");
+  client.println(jsonObject.length());
+  client.println();
+  client.println(jsonObject);
+  }
+
+if (FERMENTER_3){
+  Serial.println(resource_3);
+  String jsonObject = String("{\"value1\":\"") + set_temp + "\",\"value2\":\"" + vat_temp
+                      + "\",\"value3\":\"" + air_temp + "\"}";
+                    
+  client.println(String("POST ") + resource_3 + " HTTP/1.1");
+  client.println(String("Host: ") + server_ifttt); 
+  client.println("Connection: close\r\nContent-Type: application/json");
+  client.print("Content-Length: ");
+  client.println(jsonObject.length());
+  client.println();
+  client.println(jsonObject);
+  }
 
   int timeout_b = 10 * 10;  
   while(!!!client.available() && (timeout_b-- > 0)){
@@ -562,6 +632,10 @@ void loop() {
       #endif
       last_publish = millis();
      }*/
+
+  display.clear();
+  display.drawString(64, 22, WiFi.localIP().toString());
+  display.display();
      
     //Send an update to the Serial monitor if DEBUG mode is on
     #if (DEBUG) 
