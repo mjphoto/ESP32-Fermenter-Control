@@ -37,8 +37,8 @@ float fridge_on_thresh = 0.25;
 float fridge_off_thresh = 0.05;
 
 // Replace with your network credentials
-const char* ssid     = "ScottGuest2";
-const char* password = "scott630";
+const char* ssid     = "Laser_Snake";
+const char* password = "zxcv1597zxcv1597";
 
 // Set web server port number to 80
 WiFiServer server(80);
@@ -102,6 +102,12 @@ RunningMedian airTempMedian = RunningMedian(60);
 const int VAT_ID = 1;
 const int AIR_ID = 2;
 
+// Set your Static IP address - CHANGE THIS FOR EACH ESP32 MODULE
+IPAddress local_IP(192, 168, 188, 69);
+// Set your Gateway IP address
+IPAddress gateway(192, 168, 188, 1);
+IPAddress subnet(255, 255, 255, 0);
+
 void setup() {
   Serial.begin(115200);
 
@@ -113,6 +119,11 @@ void setup() {
   digitalWrite(16, LOW);
   delay(50);
   digitalWrite(16, HIGH);
+
+    // Configures static IP address
+  if (!WiFi.config(local_IP, gateway, subnet)) {
+    Serial.println("STA Failed to configure");
+  }
 
   // Initialising the UI will init the display too.
   display.init();
@@ -177,6 +188,12 @@ void setup() {
   Serial.println(ssid);
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
+    display.clear();
+    display.setFont(ArialMT_Plain_16);
+    display.drawString(64, 8, "WIFI");
+    display.drawString(64, 24, "NOT");
+    display.drawString(64, 40, "CONNECTED");
+    display.display();
     delay(500);
     Serial.print(".");
   }
@@ -545,7 +562,7 @@ void OLED_display(){
   display.clear();
   display.setTextAlignment(TEXT_ALIGN_CENTER);
   display.setFont(ArialMT_Plain_16);
-  display.drawString(64, 0, "IP = " + WiFi.localIP().toString());
+  display.drawString(64, 0, WiFi.localIP().toString());
   display.setFont(ArialMT_Plain_16);
   display.drawString(64, 16, "VAT = " + String(vat_temp) + "C");
   display.setFont(ArialMT_Plain_16);
